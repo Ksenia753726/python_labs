@@ -7,21 +7,19 @@ import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
 class Autoencoder(nn.Module):
     def __init__(self, input_dim=784, latent_dim=32):
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Linear(input_dim, 256),
             nn.ReLU(),
-            nn.Linear(256, latent_dim),  # bottleneck без активации
+            nn.Linear(256, latent_dim),
         )
-        # Декодер: восстанавливает вход из латентного вектора
         self.decoder = nn.Sequential(
             nn.Linear(latent_dim, 256),
             nn.ReLU(),
             nn.Linear(256, input_dim),
-            nn.Sigmoid(),  # выход в диапазоне [0, 1], как у пикселей
+            nn.Sigmoid(),
         )
 
     def forward(self, x):
@@ -44,7 +42,7 @@ def train_epoch(loader):
     model.train()
     total_loss = 0.0
     for images, _ in loader:
-        x = images.view(images.size(0), -1).to(device)  # (B, 1, 28, 28) -> (B, 784)
+        x = images.view(images.size(0), -1).to(device)
         optimizer.zero_grad()
         x_hat = model(x)
         loss = criterion(x_hat, x)
@@ -73,19 +71,19 @@ for epoch in range(1, epochs + 1):
     history["val"].append(val_loss)
     print(f"Epoch {epoch:2d} | train MSE: {train_loss:.5f} | val MSE: {val_loss:.5f}")
 
-# Визуализация: оригиналы и их реконструкции
+
 model.eval()
 all_codes = []
 with torch.no_grad():
-    for images, _ in train_loader:  # или test_loader, в зависимости от задачи
+    for images, _ in train_loader:
         x = images.view(images.size(0), -1).to(device)
-        z = model.encoder(x)          # только энкодер, размер [B, 32]
+        z = model.encoder(x)
         all_codes.append(z.cpu())
 
 Z = torch.cat(all_codes, dim=0).double()
 print("Размер матрицы кодов:", Z.shape)
 
-mean_z = Z.mean(dim=0)  # [32]
+mean_z = Z.mean(dim=0)
 cov_z = torch.cov(Z.T)
 N, D = Z.shape
 
@@ -104,7 +102,7 @@ for i in range(n):
     axes[0, i].axis("off")
     axes[1, i].imshow(recon[i, 0], cmap="gray")
     axes[1, i].axis("off")
-axes[0, 0].set_title("Оригинал", loc="left")
+axes[0, 0].set_title("оригинал", loc="left")
 axes[1, 0].set_title("Реконструкция", loc="left")
 plt.tight_layout()
 plt.show()
@@ -119,29 +117,23 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
-# Использование энкодера отдельно: получить сжатое представление
 with torch.no_grad():
     codes = model.encoder(x[:5])
-    print("Размерность латентного кода:", codes.shape)  # torch.Size([5, 32])
+    print("Размерность латентного кода:", codes.shape)
 
 
-# Собственные значения (по возрастанию), переводим в убывающий порядок
 eigvals = torch.linalg.eigvalsh(cov_z)
-eigvals = torch.flip(eigvals.clamp_min(0), dims=[0])  # clamp убирает шум вида -1e-17
+eigvals = torch.flip(eigvals.clamp_min(0), dims=[0])
 
-# Доля объяснённой дисперсии и накопленная доля
 ratio = eigvals / eigvals.sum()
 cum = ratio.cumsum(dim=0)
 
-
-# Число компонент, нужных для заданной доли дисперсии
 k90 = int((cum < 0.90).sum().item()) + 1
 k95 = int((cum < 0.95).sum().item()) + 1
 k99 = int((cum < 0.99).sum().item()) + 1
 
-# Participation ratio: «эффективное число» измерений
 eff_dim = (eigvals.sum() ** 2 / (eigvals ** 2).sum()).item()
-Zc = Z - Z.mean(dim=0)  # центрирование
+Zc = Z - Z.mean(dim=0)
 rank = torch.linalg.matrix_rank(Zc)
 print("Ранг матрицы кодов:", rank.item())
 
@@ -150,7 +142,6 @@ print(f"Компонент для 95% дисперсии: {k95}")
 print(f"Компонент для 99% дисперсии: {k99}")
 print(f"Эффективная размерность (participation ratio): {eff_dim:.2f} из {D}")
 
-# Графики: спектр и накопленная дисперсия
 idx = range(1, D + 1)
 fig, ax = plt.subplots(1, 2, figsize=(11, 4))
 ax[0].semilogy(idx, eigvals.numpy(), "o-")
